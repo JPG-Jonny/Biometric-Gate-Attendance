@@ -1,0 +1,21 @@
+{
+	email {$ACME_EMAIL}
+}
+{$PUBLIC_ORIGIN} {
+	@private path /metrics /docs /openapi.json /redoc
+	respond @private 404
+	request_body {
+		max_size 5MB
+	}
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy app:8000 {
+		lb_policy round_robin
+		health_uri /health/ready
+		health_interval 15s
+		health_timeout 5s
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 30s
+		}
+	}
+}

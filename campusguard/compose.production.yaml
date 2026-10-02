@@ -1,0 +1,104 @@
+name: campusguard
+x-app-image: &app-image
+  image: ${CAMPUSGUARD_IMAGE:-campusguard:local}
+  build:
+    context: .
+    args:
+      INSTALL_BIOMETRICS: ${INSTALL_BIOMETRICS:-true}
+x-settings: &settings
+  BIOMETRIC_ENCRYPTION_KEY: ${BIOMETRIC_ENCRYPTION_KEY:?required}
+  PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?required}
+  METRICS_TOKEN: ${METRICS_TOKEN:?required}
+  CAMPUS_TIMEZONE: ${CAMPUS_TIMEZONE:-Asia/Kolkata}
+  CLASS_START: ${CLASS_START:-09:00}
+  CLASS_END: ${CLASS_END:-16:00}
+  FACE_THRESHOLD: ${FACE_THRESHOLD:-0.50}
+  MATCH_MARGIN: ${MATCH_MARGIN:-0.05}
+  COOLDOWN_SECONDS: ${COOLDOWN_SECONDS:-30}
+  MAX_OFFLINE_DAYS: ${MAX_OFFLINE_DAYS:-7}
+  DB_POOL_SIZE: ${DB_POOL_SIZE:-8}
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: campusguard
+      POSTGRES_USER: campusguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes:
+      - campusguard_db:/var/lib/postgresql/data
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U campusguard -d campusguard']
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    logging: &logging
+      driver: json-file
+      options: {max-size: '10m', max-file: '3'}
+  migrate:
+    <<: *app-image
+    profiles: [tools]
+    environment:
+      <<: *settings
+      ENVIRONMENT: development
+      DATABASE_URL: ${MIGRATION_DATABASE_URL:?required}
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:?required}
+    command: [python, -m, scripts.prepare_db]
+    depends_on:
+      db: {condition: service_healthy}
+    networks: [database]
+    logging: *logging
+  app:
+    <<: *app-image
+    restart: unless-stopped
+    environment:
+      <<: *settings
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DATABASE_URL: ${RUNTIME_DATABASE_URL:?required}
+    depends_on:
+      db: {condition: service_healthy}
+    read_only: true
+    tmpfs: ['/tmp:size=32m,mode=1777']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    mem_limit: 1g
+    pids_limit: 128
+    networks: [database, frontend, monitoring]
+    logging: *logging
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?required}
+      ACME_EMAIL: ${ACME_EMAIL:?required}
+    ports: ['80:80', '443:443']
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app: {condition: service_healthy}
+    networks: [frontend]
+    logging: *logging
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    restart: unless-stopped
+    command: ['--config.file=/etc/prometheus/prometheus.yml','--storage.tsdb.retention.time=15d']
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./.deploy/metrics_token:/etc/prometheus/metrics_token:ro
+      - prometheus_data:/prometheus
+    ports: ['127.0.0.1:9090:9090']
+    networks: [monitoring]
+    logging: *logging
+volumes:
+  campusguard_db:
+  caddy_data:
+  caddy_config:
+  prometheus_data:
+networks:
+  database: {internal: true}
+  frontend:
+  monitoring: {internal: true}

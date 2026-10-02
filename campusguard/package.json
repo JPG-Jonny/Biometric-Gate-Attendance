@@ -1,0 +1,13 @@
+{
+  "name": "campusguard-checks",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Optional SQL and DOM smoke checks; not required to run the dashboard",
+  "scripts": {
+    "test:smoke": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "jsdom": "30.1.1"
+  }
+}

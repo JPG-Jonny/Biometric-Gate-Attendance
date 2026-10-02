@@ -1,0 +1,19 @@
+# Local database only. Host API runs separately; camera runs on your host.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: campusguard
+      POSTGRES_USER: campusguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - campusguard_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campusguard -d campusguard"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  campusguard_db:

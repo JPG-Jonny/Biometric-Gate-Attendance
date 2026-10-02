@@ -1,0 +1,23 @@
+groups:
+  - name: campusguard
+    rules:
+      - alert: CampusGuardUnavailable
+        expr: up{job="campusguard"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: 'CampusGuard metrics or database is unreachable'}
+      - alert: CampusGuardErrors
+        expr: sum(rate(campusguard_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(campusguard_http_requests_total[5m])), 0.01) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: 'More than 5 percent of requests return server errors'}
+      - alert: CampusGuardSlowRequests
+        expr: histogram_quantile(0.95, sum by (le) (rate(campusguard_http_duration_seconds_bucket{route!="/metrics"}[5m]))) > 2
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: 'API p95 latency exceeds two seconds'}
+      - alert: CampusGuardLoginFailures
+        expr: sum(increase(campusguard_auth_total{outcome="failed"}[5m])) > 20
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: 'Repeated failed staff sign-in attempts'}

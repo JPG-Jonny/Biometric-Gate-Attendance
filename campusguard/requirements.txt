@@ -1,0 +1,15 @@
+-c requirements.lock
+# Validated application/API dependencies. Python 3.11 or 3.12.
+fastapi==0.141.1
+uvicorn==0.54.0
+psycopg[binary,pool]==3.3.6
+psycopg-pool==3.3.3
+cryptography==50.0.1
+python-dotenv==1.2.3
+python-multipart==0.0.32
+Pillow==12.3.0
+requests==2.34.2
+# ZoneInfo data is needed on Windows.
+tzdata==2026.2
+argon2-cffi==25.1.0
+prometheus-client==0.22.1
